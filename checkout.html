@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniStore - Checkout</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Paystack Inline JS Popup Library -->
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans pb-12">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+      <a href="shop.html" class="text-sm font-semibold text-slate-600 hover:text-blue-600 flex items-center gap-1">
+        <i class="fa-solid fa-arrow-left"></i> Continue Shopping
+      </a>
+      <h1 class="text-base font-bold text-slate-900">Checkout & Payment</h1>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 mt-6">
+    <div id="cartContent" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Dynamic Cart Items & Order Form -->
+    </div>
+  </main>
+
+  <script>
+    // ==========================================
+    // CONFIGURATION: Replace with your Paystack Key
+    // ==========================================
+    const PAYSTACK_PUBLIC_KEY = 'pk_test_fd9487f5a0034d26b9592f3906245fac5c717b9a'; 
+
+    function loadCart() {
+      const container = document.getElementById('cartContent');
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+
+      if (cart.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-3 text-center py-16 bg-white rounded-xl border border-gray-100 p-6">
+            <i class="fa-solid fa-basket-shopping text-4xl text-gray-300 mb-3"></i>
+            <h2 class="text-base font-bold text-slate-800">Your cart is empty</h2>
+            <p class="text-xs text-gray-500 mt-1 mb-4">Add products to your cart before proceeding to checkout.</p>
+            <a href="index.html" class="inline-block bg-blue-600 text-white text-xs px-5 py-2.5 rounded-lg font-medium hover:bg-blue-700">Browse Products</a>
+          </div>
+        `;
+        return;
+      }
+
+      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      container.innerHTML = `
+        <div class="md:col-span-2 space-y-3">
+          <div class="flex justify-between items-center mb-2">
+            <h2 class="text-sm font-bold text-slate-900">Items (${cart.length})</h2>
+            <button onclick="clearCart()" class="text-xs text-red-500 hover:underline">Clear Cart</button>
+          </div>
+          
+          ${cart.map((item, index) => `
+            <div class="bg-white p-3 rounded-lg border border-gray-100 flex items-center gap-3">
+              <img src="${item.image}" alt="${item.title}" class="h-16 w-16 object-cover rounded bg-gray-50" onerror="this.src='https://placehold.co/300x300?text=Error'">
+              
+              <div class="flex-1">
+                <h3 class="text-xs font-semibold text-slate-800 line-clamp-1">${item.title}</h3>
+                <p class="text-xs font-bold text-slate-900 mt-0.5">₦${item.price.toLocaleString()}</p>
+                
+                <div class="flex items-center gap-2 mt-2">
+                  <button onclick="updateQuantity(${index}, -1)" class="w-6 h-6 border rounded flex items-center justify-center text-xs font-bold hover:bg-gray-100">-</button>
+                  <span class="text-xs font-bold w-4 text-center">${item.quantity}</span>
+                  <button onclick="updateQuantity(${index}, 1)" class="w-6 h-6 border rounded flex items-center justify-center text-xs font-bold hover:bg-gray-100">+</button>
+                </div>
+              </div>
+
+              <div class="text-right">
+                <p class="text-xs font-bold text-slate-900">₦${(item.price * item.quantity).toLocaleString()}</p>
+                <button onclick="removeItem(${index})" class="text-gray-400 hover:text-red-500 mt-2 text-xs">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Summary & Paystack Payment Form -->
+        <div class="bg-white p-4 rounded-xl border border-gray-100 h-fit space-y-4">
+          <h2 class="text-sm font-bold text-slate-900 border-b border-gray-100 pb-2">Order Summary</h2>
+
+          <div class="border-b border-gray-100 pb-3 flex justify-between text-sm font-extrabold text-slate-900">
+            <span>Total Payable</span>
+            <span class="text-blue-600">₦${total.toLocaleString()}</span>
+          </div>
+
+          <form onsubmit="payWithPaystack(event)" class="space-y-3">
+            <div>
+              <label class="text-[11px] font-medium text-slate-600 block mb-1">Full Name</label>
+              <input type="text" id="custName" required class="w-full text-xs p-2 border rounded-md focus:ring-1 focus:ring-blue-600 outline-none" placeholder="John Doe">
+            </div>
+            <div>
+              <label class="text-[11px] font-medium text-slate-600 block mb-1">Email Address</label>
+              <input type="email" id="custEmail" required class="w-full text-xs p-2 border rounded-md focus:ring-1 focus:ring-blue-600 outline-none" placeholder="john@example.com">
+            </div>
+            <div>
+              <label class="text-[11px] font-medium text-slate-600 block mb-1">Phone Number</label>
+              <input type="tel" id="custPhone" required class="w-full text-xs p-2 border rounded-md focus:ring-1 focus:ring-blue-600 outline-none" placeholder="08012345678">
+            </div>
+            <div>
+              <label class="text-[11px] font-medium text-slate-600 block mb-1">Delivery Address</label>
+              <textarea id="custAddress" required rows="2" class="w-full text-xs p-2 border rounded-md focus:ring-1 focus:ring-blue-600 outline-none" placeholder="Street address, City, State"></textarea>
+            </div>
+
+            <button type="submit" class="w-full bg-blue-600 text-white font-bold text-xs py-3 rounded-lg hover:bg-blue-700 active:scale-95 transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-lock text-xs"></i> Pay Now ₦${total.toLocaleString()}
+            </button>
+          </form>
+        </div>
+      `;
+    }
+
+    function updateQuantity(index, delta) {
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+      cart[index].quantity += delta;
+      if (cart[index].quantity <= 0) cart.splice(index, 1);
+      localStorage.setItem('omniCart', JSON.stringify(cart));
+      loadCart();
+    }
+
+    function removeItem(index) {
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+      cart.splice(index, 1);
+      localStorage.setItem('omniCart', JSON.stringify(cart));
+      loadCart();
+    }
+
+    function clearCart() {
+      localStorage.removeItem('omniCart');
+      loadCart();
+    }
+
+    function payWithPaystack(event) {
+      event.preventDefault();
+      
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+      const name = document.getElementById('custName').value;
+      const email = document.getElementById('custEmail').value;
+      const phone = document.getElementById('custPhone').value;
+      const address = document.getElementById('custAddress').value;
+
+      const totalInNaira = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const totalInKobo = totalInNaira * 100;
+
+      // Create an uneditable list of ordered items for Paystack metadata
+      const itemsSummary = cart.map(item => `${item.title} (x${item.quantity}) - ₦${(item.price * item.quantity).toLocaleString()}`).join(' | ');
+
+      const handler = PaystackPop.setup({
+        key: PAYSTACK_PUBLIC_KEY,
+        email: email,
+        amount: totalInKobo,
+        currency: 'NGN',
+        metadata: {
+          custom_fields: [
+            { display_name: "Customer Name", variable_name: "customer_name", value: name },
+            { display_name: "Phone Number", variable_name: "phone_number", value: phone },
+            { display_name: "Delivery Address", variable_name: "delivery_address", value: address },
+            { display_name: "Items Ordered", variable_name: "items_ordered", value: itemsSummary }
+          ]
+        },
+        callback: function(response) {
+          // Clear cart on successful payment
+          localStorage.removeItem('omniCart');
+
+          // Confirmation popup for customer
+          alert(`Payment Successful!\n\nReference: ${response.reference}\nThank you ${name}, your order has been received and verified.`);
+          window.location.href = 'index.html';
+        },
+        onClose: function() {
+          alert('Transaction was canceled.');
+        }
+      });
+
+      handler.openIframe();
+    }
+
+    document.addEventListener('DOMContentLoaded', loadCart);
+  </script>
+</body>
+</html>

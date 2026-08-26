@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniStore - Shop</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+  <!-- Header & Navigation -->
+  <header class="bg-white border-b sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
+      <a href="index.html" class="text-xl font-bold tracking-tight text-slate-900">
+        Omni<span class="text-blue-600">Store</span>
+      </a>
+      <a href="checkout.html" class="relative p-2 text-slate-700 hover:text-blue-600">
+        <i class="fa-solid fa-cart-shopping text-xl"></i>
+        <span id="cartCount" class="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="bg-blue-600 text-white py-6 px-4 mb-6">
+    <div class="max-w-6xl mx-auto text-center">
+      <h1 class="text-2xl font-bold mb-1">Welcome to OmniStore</h1>
+      <p class="text-blue-100 text-xs">Quality products delivered right to your doorstep.</p>
+    </div>
+  </section>
+
+  <!-- Main Store Section -->
+  <main class="max-w-6xl mx-auto px-4 pb-12 flex-grow w-full">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-lg font-bold text-slate-900">Featured Products</h2>
+      <span id="productTotal" class="text-xs text-gray-500">Loading inventory...</span>
+    </div>
+
+    <!-- Dynamic Product Grid -->
+    <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <!-- Products will render here dynamically -->
+      <div class="col-span-full text-center py-12 text-gray-400">
+        <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+        <p class="text-xs">Fetching items from Google Sheet...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t py-6 text-center text-xs text-gray-500 mt-auto">
+    <p>&copy; 2026 OmniStore. All rights reserved.</p>
+  </footer>
+
+  <!-- Store Logic & Google Sheet CSV Fetcher -->
+  <script>
+    // Mobile-compatible Google Sheet Endpoint
+    const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1P15PxqkSylm1obTA0w_GgLWlFQtuFvEa2y9Hl2_m100/gviz/tq?tqx=out:csv';
+
+    // Fetch CSV data on page load
+    async function loadProducts() {
+      const container = document.getElementById('productsGrid');
+      const totalSpan = document.getElementById('productTotal');
+
+      try {
+        const response = await fetch(SHEET_CSV_URL);
+        if (!response.ok) throw new Error('Sheet not accessible');
+        
+        const csvText = await response.text();
+        const products = parseCSV(csvText);
+
+        totalSpan.textContent = `${products.length} Products Available`;
+        renderProducts(products);
+      } catch (error) {
+        console.error('Error loading Google Sheet:', error);
+        container.innerHTML = `
+          <div class="col-span-full text-center py-10 bg-red-50 text-red-600 rounded-lg p-4">
+            <i class="fa-solid fa-triangle-exclamation text-2xl mb-2"></i>
+            <p class="text-xs font-semibold">Unable to load products from Google Sheet.</p>
+            <p class="text-[11px] mt-1 text-red-500">Ensure your Google Sheet general access is set to "Anyone with the link".</p>
+          </div>
+        `;
+      }
+    }
+
+    // CSV Parser supporting quote escaping and multiple comma-separated image URLs
+    function parseCSV(csv) {
+      const lines = csv.trim().split('\n');
+      const products = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+
+        let insideQuote = false;
+        let entry = '';
+        const row = [];
+
+        for (let char of line) {
+          if (char === '"') {
+            insideQuote = !insideQuote;
+          } else if (char === ',' && !insideQuote) {
+            row.push(entry.trim().replace(/^"|"$/g, ''));
+            entry = '';
+          } else {
+            entry += char;
+          }
+        }
+        row.push(entry.trim().replace(/^"|"$/g, ''));
+
+        if (row.length >= 4) {
+          // Parse multiple image links separated by comma in Column D
+          const rawImages = row[3] ? row[3].split(',').map(url => url.trim()) : [];
+          
+          products.push({
+            id: i,
+            title: row[0] || 'Untitled Product',
+            price: parseFloat(row[1]) || 0,
+            stock: parseInt(row[2]) || 0,
+            mainImage: rawImages[0] || 'https://via.placeholder.com/200?text=No+Image',
+            allImages: rawImages,
+            category: row[4] || 'General'
+          });
+        }
+      }
+      return products;
+    }
+
+    // Render HTML Product Cards
+    function renderProducts(products) {
+      const container = document.getElementById('productsGrid');
+
+      if (products.length === 0) {
+        container.innerHTML = '<p class="col-span-full text-center text-gray-400 py-8 text-xs">No items currently in stock.</p>';
+        return;
+      }
+
+      container.innerHTML = products.map(product => {
+        const isOutOfStock = product.stock <= 0;
+        const sanitizedTitle = product.title.replace(/'/g, "\\'");
+
+        return `
+          <div class="bg-white rounded-lg border border-gray-100 shadow-sm p-3 flex flex-col justify-between relative overflow-hidden">
+            ${isOutOfStock ? '<span class="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-bold px-2 py-0.5 rounded z-10">Out of Stock</span>' : ''}
+            
+            <div>
+              <a href="product.html?id=${product.id}" class="block group">
+                <div class="h-32 bg-gray-50 rounded-md mb-2 overflow-hidden flex items-center justify-center relative">
+                  <img 
+                    src="${product.mainImage}" 
+                    alt="${product.title}" 
+                    class="h-full w-full object-cover group-hover:scale-105 transition duration-300"
+                    onerror="this.src='https://via.placeholder.com/200?text=Image+Error'"
+                  >
+                </div>
+                <h3 class="text-xs font-semibold text-slate-800 line-clamp-2 leading-tight group-hover:text-blue-600 transition">${product.title}</h3>
+                <p class="text-sm font-bold text-slate-900 mt-1">₦${product.price.toLocaleString()}</p>
+              </a>
+            </div>
+
+            <button 
+              onclick="addToCart('${sanitizedTitle}', ${product.price}, '${product.mainImage}')"
+              ${isOutOfStock ? 'disabled' : ''}
+              class="w-full mt-3 text-xs py-2 rounded font-medium transition ${
+                isOutOfStock 
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+              }">
+              ${isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Cart LocalStorage Helpers
+    function addToCart(title, price, image) {
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+      const existingItem = cart.find(item => item.title === title);
+
+      if (existingItem) {
+        existingItem.quantity += 1;
+      } else {
+        cart.push({ title, price, image, quantity: 1 });
+      }
+
+      localStorage.setItem('omniCart', JSON.stringify(cart));
+      updateCartBadge();
+      alert(`Added "${title}" to your cart!`);
+    }
+
+    function updateCartBadge() {
+      const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
+      const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+      document.getElementById('cartCount').textContent = totalCount;
+    }
+
+    // Initialize on page ready
+    document.addEventListener('DOMContentLoaded', () => {
+      loadProducts();
+      updateCartBadge();
+    });
+  </script>
+</body>
+</html>
