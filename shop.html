@@ -211,6 +211,33 @@
       }).join('');
     }
 
+    // Custom Toast Notification Function
+    function showToast(message) {
+      const existingToast = document.getElementById('customToast');
+      if (existingToast) existingToast.remove();
+
+      const toast = document.createElement('div');
+      toast.id = 'customToast';
+      toast.className = 'fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 z-50 transition-all duration-300 transform border border-slate-700 max-w-[90%] w-auto';
+      
+      toast.innerHTML = `
+        <i class="fa-solid fa-circle-check text-green-400 text-sm"></i>
+        <span class="text-xs font-medium">${message}</span>
+        <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-white pl-2">
+          <i class="fa-solid fa-xmark text-xs"></i>
+        </button>
+      `;
+
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        if (toast) {
+          toast.classList.add('opacity-0', 'translate-y-2');
+          setTimeout(() => toast.remove(), 300);
+        }
+      }, 3000);
+    }
+
     // Cart LocalStorage Helpers
     function addToCart(title, price, image) {
       const cart = JSON.parse(localStorage.getItem('omniCart')) || [];
@@ -224,7 +251,9 @@
 
       localStorage.setItem('omniCart', JSON.stringify(cart));
       updateCartBadge();
-      alert(`Added "${title}" to your cart!`);
+      
+      // Custom styled popup toast
+      showToast(`Added "${title}" to your cart!`);
     }
 
     function updateCartBadge() {
