@@ -34,6 +34,21 @@
 
   <!-- Main Store Section -->
   <main class="max-w-6xl mx-auto px-4 pb-12 flex-grow w-full">
+    
+    <!-- Search Bar -->
+    <div class="mb-5">
+      <div class="relative">
+        <input 
+          type="text" 
+          id="searchInput" 
+          oninput="filterProducts()" 
+          placeholder="Search products by name or category..." 
+          class="w-full pl-10 pr-4 py-2.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent bg-white shadow-sm"
+        >
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-xs"></i>
+      </div>
+    </div>
+
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-lg font-bold text-slate-900">Featured Products</h2>
       <span id="productTotal" class="text-xs text-gray-500">Loading inventory...</span>
@@ -59,6 +74,9 @@
     // Mobile-compatible Google Sheet Endpoint
     const SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1P15PxqkSylm1obTA0w_GgLWlFQtuFvEa2y9Hl2_m100/gviz/tq?tqx=out:csv';
 
+    // Global variable to store master product list
+    let allProducts = [];
+
     // Fetch CSV data on page load
     async function loadProducts() {
       const container = document.getElementById('productsGrid');
@@ -69,10 +87,10 @@
         if (!response.ok) throw new Error('Sheet not accessible');
         
         const csvText = await response.text();
-        const products = parseCSV(csvText);
+        allProducts = parseCSV(csvText);
 
-        totalSpan.textContent = `${products.length} Products Available`;
-        renderProducts(products);
+        totalSpan.textContent = `${allProducts.length} Products Available`;
+        renderProducts(allProducts);
       } catch (error) {
         console.error('Error loading Google Sheet:', error);
         container.innerHTML = `
@@ -128,12 +146,30 @@
       return products;
     }
 
+    // Search Filter Logic
+    function filterProducts() {
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const totalSpan = document.getElementById('productTotal');
+
+      const filtered = allProducts.filter(product => {
+        const matchTitle = product.title.toLowerCase().includes(query);
+        const matchCategory = product.category.toLowerCase().includes(query);
+        return matchTitle || matchCategory;
+      });
+
+      totalSpan.textContent = query === '' 
+        ? `${allProducts.length} Products Available` 
+        : `${filtered.length} of ${allProducts.length} Products Found`;
+
+      renderProducts(filtered);
+    }
+
     // Render HTML Product Cards
     function renderProducts(products) {
       const container = document.getElementById('productsGrid');
 
       if (products.length === 0) {
-        container.innerHTML = '<p class="col-span-full text-center text-gray-400 py-8 text-xs">No items currently in stock.</p>';
+        container.innerHTML = '<p class="col-span-full text-center text-gray-400 py-8 text-xs">No matching items found.</p>';
         return;
       }
 
